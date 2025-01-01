@@ -1,14 +1,13 @@
-package test
+package main
 
 import (
 	"fmt"
-	"github.com/chongyanovo/zweb"
 	"testing"
 )
 
 func Test_Server(t *testing.T) {
-	server := main.NewHTTPServer()
-	server.Get("/a/b/c", func(ctx *main.Context) {
+	server := NewHTTPServer()
+	server.Get("/a/b/c", func(ctx *Context) {
 		fmt.Println("handler1")
 		_, _ = ctx.ResponseWriter.Write([]byte("hello world"))
 	})

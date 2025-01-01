@@ -1,8 +1,7 @@
-package test
+package main
 
 import (
 	"fmt"
-	"github.com/chongyanovo/zweb"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"reflect"
@@ -31,33 +30,33 @@ func Test_router_addRoute(t *testing.T) {
 			path:   "/order/create",
 		},
 	}
-	mockHandler := func(c *main.Context) {
+	mockHandler := func(c *Context) {
 
 	}
-	r := main.newRouter()
+	r := newRouter()
 	for _, test := range testRoutes {
 		r.addRoute(test.method, test.path, mockHandler)
 	}
-	wantRouter := &main.router{trees: map[string]*main.node{
+	wantRouter := &router{trees: map[string]*node{
 		http.MethodGet: {
 			path: "/",
-			children: map[string]*main.node{
+			children: map[string]*node{
 				"user": {
 					path: "user",
-					children: map[string]*main.node{
+					children: map[string]*node{
 						"home": {
 							path:     "home",
-							children: map[string]*main.node{},
+							children: map[string]*node{},
 							handler:  mockHandler,
 						},
 					},
 				},
 				"order": {
 					path: "order",
-					children: map[string]*main.node{
+					children: map[string]*node{
 						"detail": {
 							path:     "detail",
-							children: map[string]*main.node{},
+							children: map[string]*node{},
 							handler:  mockHandler,
 						},
 					},
@@ -67,13 +66,13 @@ func Test_router_addRoute(t *testing.T) {
 		},
 		http.MethodPost: {
 			path: "/",
-			children: map[string]*main.node{
+			children: map[string]*node{
 				"order": {
 					path: "order",
-					children: map[string]*main.node{
+					children: map[string]*node{
 						"create": {
 							path:     "create",
-							children: map[string]*main.node{},
+							children: map[string]*node{},
 							handler:  mockHandler,
 						},
 					},
@@ -84,7 +83,7 @@ func Test_router_addRoute(t *testing.T) {
 	msg, ok := r.equal(wantRouter)
 	assert.True(t, ok, msg)
 
-	r = main.newRouter()
+	r = newRouter()
 	assert.Panicsf(t, func() {
 		r.addRoute(http.MethodPost, "", mockHandler)
 	}, "path can not be empty")
@@ -98,7 +97,7 @@ func Test_router_addRoute(t *testing.T) {
 		r.addRoute(http.MethodPost, "/a///b", mockHandler)
 	}, "path must not contain empty path")
 
-	r = main.newRouter()
+	r = newRouter()
 	r.addRoute(http.MethodPost, "/", mockHandler)
 	assert.Panicsf(t, func() {
 		r.addRoute(http.MethodPost, "/", mockHandler)
@@ -112,7 +111,7 @@ func Test_router_addRoute(t *testing.T) {
 	}, "handleFunc can not be nil")
 }
 
-func (r *main.router) equal(target *main.router) (string, bool) {
+func (r *router) equal(target *router) (string, bool) {
 	for k, v := range r.trees {
 		dst, ok := target.trees[k]
 		if !ok {
@@ -125,7 +124,7 @@ func (r *main.router) equal(target *main.router) (string, bool) {
 	return "", true
 }
 
-func (n *main.node) equal(target *main.node) (string, bool) {
+func (n *node) equal(target *node) (string, bool) {
 	if n.path != target.path {
 		return fmt.Sprintf("path不匹配"), false
 	}
@@ -158,8 +157,8 @@ func Test_router_FindRouter(t *testing.T) {
 		{http.MethodGet, "/b/c"},
 		{http.MethodPost, "/a/b/c"},
 	}
-	r := main.newRouter()
-	mockHandler := func(c *main.Context) {
+	r := newRouter()
+	mockHandler := func(c *Context) {
 
 	}
 	for _, route := range testRoutes {
@@ -170,14 +169,14 @@ func Test_router_FindRouter(t *testing.T) {
 		method    string
 		path      string
 		wantFound bool
-		wantNode  *main.node
+		wantNode  *node
 	}{
 		{
 			name:      "found",
 			method:    http.MethodGet,
 			path:      "/a",
 			wantFound: true,
-			wantNode: &main.node{
+			wantNode: &node{
 				path:    "a",
 				handler: mockHandler,
 			},
@@ -187,7 +186,7 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodGet,
 			path:      "/a/b",
 			wantFound: false,
-			wantNode: &main.node{
+			wantNode: &node{
 				path:    "b",
 				handler: mockHandler,
 			},
@@ -197,7 +196,7 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodHead,
 			path:      "/a/b",
 			wantFound: false,
-			wantNode: &main.node{
+			wantNode: &node{
 				path:    "b",
 				handler: mockHandler,
 			},
@@ -207,9 +206,9 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodGet,
 			path:      "b",
 			wantFound: true,
-			wantNode: &main.node{
+			wantNode: &node{
 				path: "b",
-				children: map[string]*main.node{
+				children: map[string]*node{
 					"c": {
 						path:     "c",
 						children: nil,
