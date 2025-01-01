@@ -12,10 +12,11 @@ type router struct {
 
 // node 路由节点
 type node struct {
-	path      string
-	children  map[string]*node
-	wildChild *node
-	handler   HandleFunc
+	path       string
+	children   map[string]*node
+	wildChild  *node
+	paramChild *node
+	handler    HandleFunc
 }
 
 // newRouter 创建路由
@@ -68,7 +69,19 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 
 // childOrCreate 创建子节点
 func (n *node) childOrCreate(path string) *node {
+	if path[0] == ':' {
+		if n.wildChild != nil {
+			panic(fmt.Sprintf("both parameters and wildcards can not be registered: %s", path))
+		}
+		n.paramChild = &node{
+			path: path,
+		}
+		return n.paramChild
+	}
 	if path == "*" {
+		if n.paramChild != nil {
+			panic(fmt.Sprintf("both parameters and wildcards can not be registered: %s", path))
+		}
 		n.wildChild = &node{
 			path: path,
 		}
@@ -107,9 +120,15 @@ func (r *router) findRouter(method, path string) (*node, bool) {
 // childOf 查找子节点,优先静态匹配，然后再通配符匹配
 func (n *node) childOf(path string) (*node, bool) {
 	if n.children == nil {
+		if n.paramChild != nil {
+			return n.paramChild, true
+		}
 		return n.wildChild, n.wildChild != nil
 	}
 	if child, found := n.children[path]; !found {
+		if n.paramChild != nil {
+			return n.paramChild, true
+		}
 		return n.wildChild, n.wildChild != nil
 	} else {
 		return child, found

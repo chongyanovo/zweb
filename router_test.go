@@ -41,6 +41,10 @@ func Test_router_addRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/*/order/*",
 		},
+		{
+			method: http.MethodPost,
+			path:   "/a/:b/:c",
+		},
 	}
 	mockHandler := func(c *Context) {
 
@@ -109,6 +113,16 @@ func Test_router_addRoute(t *testing.T) {
 						},
 					},
 				},
+				"a": {
+					path: "a",
+					paramChild: &node{
+						path: ":b",
+						paramChild: &node{
+							path:    ":c",
+							handler: mockHandler,
+						},
+					},
+				},
 			},
 		},
 	}}
@@ -141,6 +155,16 @@ func Test_router_addRoute(t *testing.T) {
 	assert.Panicsf(t, func() {
 		r.addRoute(http.MethodPost, "/b", nil)
 	}, "handleFunc can not be nil")
+	r = newRouter()
+	r.addRoute(http.MethodPost, "/order/*", mockHandler)
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodPost, "/order/:order_id", mockHandler)
+	}, "both parameters and wildcards can not be registered")
+	r.addRoute(http.MethodPost, "/user/:user_id", mockHandler)
+	assert.Panicsf(t, func() {
+		r.addRoute(http.MethodPost, "/user/*", mockHandler)
+	}, "both parameters and wildcards can not be registered")
+
 }
 
 func (r *router) equal(target *router) (string, bool) {
@@ -158,10 +182,15 @@ func (r *router) equal(target *router) (string, bool) {
 
 func (n *node) equal(target *node) (string, bool) {
 	if n.path != target.path {
-		return fmt.Sprintf("path不匹配"), false
+		return fmt.Sprintf("path not match"), false
 	}
 	if len(n.children) != len(target.children) {
 		return fmt.Sprintf("child node number not match"), false
+	}
+	if n.paramChild != nil {
+		if msg, ok := n.paramChild.equal(target.paramChild); !ok {
+			return msg, false
+		}
 	}
 	if n.wildChild != nil {
 		if msg, ok := n.wildChild.equal(target.wildChild); !ok {
@@ -195,6 +224,7 @@ func Test_router_FindRouter(t *testing.T) {
 		{http.MethodPost, "/a/b/c"},
 		{http.MethodPost, "/order/*"},
 		{http.MethodPost, "/*/order/*"},
+		{http.MethodPost, "/a/:b/:c"},
 	}
 	r := newRouter()
 	mockHandler := func(c *Context) {
@@ -272,6 +302,16 @@ func Test_router_FindRouter(t *testing.T) {
 			wantFound: true,
 			wantNode: &node{
 				path:    "*",
+				handler: mockHandler,
+			},
+		},
+		{
+			name:      "found param child",
+			method:    http.MethodPost,
+			path:      "/a/:b/:c",
+			wantFound: true,
+			wantNode: &node{
+				path:    ":c",
 				handler: mockHandler,
 			},
 		},
