@@ -29,6 +29,18 @@ func Test_router_addRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/order/create",
 		},
+		{
+			method: http.MethodPost,
+			path:   "/order/*",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/*/*",
+		},
+		{
+			method: http.MethodPost,
+			path:   "/*/order/*",
+		},
 	}
 	mockHandler := func(c *Context) {
 
@@ -66,9 +78,29 @@ func Test_router_addRoute(t *testing.T) {
 		},
 		http.MethodPost: {
 			path: "/",
+			wildChild: &node{
+				path: "*",
+				wildChild: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
+				children: map[string]*node{
+					"order": {
+						path: "order",
+						wildChild: &node{
+							path:    "*",
+							handler: mockHandler,
+						},
+					},
+				},
+			},
 			children: map[string]*node{
 				"order": {
 					path: "order",
+					wildChild: &node{
+						path:    "*",
+						handler: mockHandler,
+					},
 					children: map[string]*node{
 						"create": {
 							path:     "create",
@@ -131,6 +163,11 @@ func (n *node) equal(target *node) (string, bool) {
 	if len(n.children) != len(target.children) {
 		return fmt.Sprintf("child node number not match"), false
 	}
+	if n.wildChild != nil {
+		if msg, ok := n.wildChild.equal(target.wildChild); !ok {
+			return msg, false
+		}
+	}
 	nHandler := reflect.ValueOf(n.handler)
 	targetHandler := reflect.ValueOf(target.handler)
 	if nHandler != targetHandler {
@@ -156,6 +193,8 @@ func Test_router_FindRouter(t *testing.T) {
 		{http.MethodGet, "/a"},
 		{http.MethodGet, "/b/c"},
 		{http.MethodPost, "/a/b/c"},
+		{http.MethodPost, "/order/*"},
+		{http.MethodPost, "/*/order/*"},
 	}
 	r := newRouter()
 	mockHandler := func(c *Context) {
@@ -210,17 +249,36 @@ func Test_router_FindRouter(t *testing.T) {
 				path: "b",
 				children: map[string]*node{
 					"c": {
-						path:     "c",
-						children: nil,
-						handler:  mockHandler,
+						path:    "c",
+						handler: mockHandler,
 					},
 				},
+			},
+		},
+		{
+			name:      "found wild child",
+			method:    http.MethodPost,
+			path:      "/order/*",
+			wantFound: true,
+			wantNode: &node{
+				path:    "*",
+				handler: mockHandler,
+			},
+		},
+		{
+			name:      "found wild child",
+			method:    http.MethodPost,
+			path:      "/*/order/*",
+			wantFound: true,
+			wantNode: &node{
+				path:    "*",
+				handler: mockHandler,
 			},
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			n, found := r.FindRouter(tc.method, tc.path)
+			n, found := r.findRouter(tc.method, tc.path)
 			assert.Equal(t, tc.wantFound, found)
 			if !found {
 				return

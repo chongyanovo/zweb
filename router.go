@@ -12,9 +12,10 @@ type router struct {
 
 // node 路由节点
 type node struct {
-	path     string
-	children map[string]*node
-	handler  HandleFunc
+	path      string
+	children  map[string]*node
+	wildChild *node
+	handler   HandleFunc
 }
 
 // newRouter 创建路由
@@ -67,6 +68,12 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 
 // childOrCreate 创建子节点
 func (n *node) childOrCreate(path string) *node {
+	if path == "*" {
+		n.wildChild = &node{
+			path: path,
+		}
+		return n.wildChild
+	}
 	if n.children == nil {
 		n.children = make(map[string]*node)
 	}
@@ -80,15 +87,8 @@ func (n *node) childOrCreate(path string) *node {
 	return child
 }
 
-func (n *node) childOf(path string) (*node, bool) {
-	if n.children == nil {
-		return nil, false
-	}
-	return n.children[path], true
-}
-
-// FindRouter 查找路由节点
-func (r *router) FindRouter(method, path string) (*node, bool) {
+// findRouter 查找路由节点
+func (r *router) findRouter(method, path string) (*node, bool) {
 	root, ok := r.trees[method]
 	if !ok {
 		return nil, false
@@ -102,4 +102,16 @@ func (r *router) FindRouter(method, path string) (*node, bool) {
 		root = child
 	}
 	return root, true
+}
+
+// childOf 查找子节点,优先静态匹配，然后再通配符匹配
+func (n *node) childOf(path string) (*node, bool) {
+	if n.children == nil {
+		return n.wildChild, n.wildChild != nil
+	}
+	if child, found := n.children[path]; !found {
+		return n.wildChild, n.wildChild != nil
+	} else {
+		return child, found
+	}
 }
