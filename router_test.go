@@ -219,6 +219,7 @@ func Test_router_FindRouter(t *testing.T) {
 		method string
 		path   string
 	}{
+		{http.MethodHead, "/"},
 		{http.MethodGet, "/a"},
 		{http.MethodGet, "/b/c"},
 		{http.MethodPost, "/a/b/c"},
@@ -234,20 +235,34 @@ func Test_router_FindRouter(t *testing.T) {
 		r.addRoute(route.method, route.path, mockHandler)
 	}
 	testCases := []struct {
-		name      string
-		method    string
-		path      string
-		wantFound bool
-		wantNode  *node
+		name          string
+		method        string
+		path          string
+		wantFound     bool
+		wantMatchInfo *matchInfo
 	}{
+		{
+			name:      "found root",
+			method:    http.MethodHead,
+			path:      "/",
+			wantFound: true,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "/",
+					handler: mockHandler,
+				},
+			},
+		},
 		{
 			name:      "found",
 			method:    http.MethodGet,
 			path:      "/a",
 			wantFound: true,
-			wantNode: &node{
-				path:    "a",
-				handler: mockHandler,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "a",
+					handler: mockHandler,
+				},
 			},
 		},
 		{
@@ -255,9 +270,11 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodGet,
 			path:      "/a/b",
 			wantFound: false,
-			wantNode: &node{
-				path:    "b",
-				handler: mockHandler,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "b",
+					handler: mockHandler,
+				},
 			},
 		},
 		{
@@ -265,9 +282,11 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodHead,
 			path:      "/a/b",
 			wantFound: false,
-			wantNode: &node{
-				path:    "b",
-				handler: mockHandler,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "b",
+					handler: mockHandler,
+				},
 			},
 		},
 		{
@@ -275,12 +294,14 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodGet,
 			path:      "b",
 			wantFound: true,
-			wantNode: &node{
-				path: "b",
-				children: map[string]*node{
-					"c": {
-						path:    "c",
-						handler: mockHandler,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path: "b",
+					children: map[string]*node{
+						"c": {
+							path:    "c",
+							handler: mockHandler,
+						},
 					},
 				},
 			},
@@ -290,9 +311,11 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodPost,
 			path:      "/order/*",
 			wantFound: true,
-			wantNode: &node{
-				path:    "*",
-				handler: mockHandler,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
 			},
 		},
 		{
@@ -300,9 +323,11 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodPost,
 			path:      "/*/order/*",
 			wantFound: true,
-			wantNode: &node{
-				path:    "*",
-				handler: mockHandler,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "*",
+					handler: mockHandler,
+				},
 			},
 		},
 		{
@@ -310,9 +335,11 @@ func Test_router_FindRouter(t *testing.T) {
 			method:    http.MethodPost,
 			path:      "/a/:b/:c",
 			wantFound: true,
-			wantNode: &node{
-				path:    ":c",
-				handler: mockHandler,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    ":c",
+					handler: mockHandler,
+				},
 			},
 		},
 	}
@@ -323,8 +350,8 @@ func Test_router_FindRouter(t *testing.T) {
 			if !found {
 				return
 			}
-			assert.Equal(t, tc.wantNode.path, n.path)
-			msg, equal := tc.wantNode.equal(n)
+			assert.Equal(t, tc.wantMatchInfo.n.path, n.n.path)
+			msg, equal := tc.wantMatchInfo.n.equal(n.n)
 			assert.True(t, equal, msg)
 		})
 	}

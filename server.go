@@ -33,12 +33,12 @@ func (s *HttpServer) ServeHTTP(writer http.ResponseWriter, request *http.Request
 
 func (s *HttpServer) serve(ctx *Context) {
 	n, found := s.router.findRouter(ctx.Request.Method, ctx.Request.URL.Path)
-	if !found || n == nil || n.handler == nil {
+	if !found || n == nil || n.n.handler == nil {
 		ctx.ResponseWriter.WriteHeader(http.StatusNotFound)
 		_, _ = ctx.ResponseWriter.Write([]byte("404 not found"))
 		return
 	}
-	n.handler(ctx)
+	n.n.handler(ctx)
 }
 
 func (s *HttpServer) Start(address string) error {

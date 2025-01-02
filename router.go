@@ -10,6 +10,11 @@ type router struct {
 	trees map[string]*node
 }
 
+type matchInfo struct {
+	n          *node
+	pathParams map[string]string
+}
+
 // node 路由节点
 type node struct {
 	path       string
@@ -26,7 +31,12 @@ func newRouter() *router {
 	}
 }
 
-// AddRoute 添加路由节点
+// addRoute 添加路由节点
+// 对于已经注册的路由,无法被覆盖
+// path必须以 / 开头,不能以 / 结尾
+// 不能在同一个位置注册不同的参数路由
+// 不能在同一个位置注册不同的参数路由和通配符路由
+// 同名路径参数在路由匹配时会被覆盖
 func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 	if handleFunc == nil {
 		panic(fmt.Sprintf("handleFunc can not be nil: %s", path))
@@ -54,11 +64,11 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 		root.handler = handleFunc
 		return
 	}
-	for _, path := range strings.Split(path[1:], "/") {
-		if path == "" {
+	for _, p := range strings.Split(path[1:], "/") {
+		if p == "" {
 			panic(fmt.Sprintf("path must not contain empty path: %s", path))
 		}
-		children := root.childOrCreate(path)
+		children := root.childOrCreate(p)
 		root = children
 	}
 	if root.handler != nil {
@@ -101,36 +111,54 @@ func (n *node) childOrCreate(path string) *node {
 }
 
 // findRouter 查找路由节点
-func (r *router) findRouter(method, path string) (*node, bool) {
+func (r *router) findRouter(method, path string) (*matchInfo, bool) {
 	root, ok := r.trees[method]
 	if !ok {
 		return nil, false
 	}
+	if path == "/" {
+		return &matchInfo{
+			n: root,
+		}, true
+	}
+	var pathParams map[string]string
 	path = strings.Trim(path, "/")
-	for _, path := range strings.Split(path, "/") {
-		child, found := root.childOf(path)
+	for _, p := range strings.Split(path, "/") {
+		child, isParamChild, found := root.childOf(p)
 		if !found {
 			return nil, false
 		}
+		if isParamChild {
+			if pathParams == nil {
+				pathParams = make(map[string]string)
+			}
+			pathParams[child.path[1:]] = p
+		}
 		root = child
 	}
-	return root, true
+	return &matchInfo{
+		n:          root,
+		pathParams: pathParams,
+	}, true
 }
 
 // childOf 查找子节点,优先静态匹配，然后再通配符匹配
-func (n *node) childOf(path string) (*node, bool) {
+// *node 命中子节点
+// bool 是否为路径参数
+// bool 是否命中
+func (n *node) childOf(path string) (*node, bool, bool) {
 	if n.children == nil {
 		if n.paramChild != nil {
-			return n.paramChild, true
+			return n.paramChild, true, true
 		}
-		return n.wildChild, n.wildChild != nil
+		return n.wildChild, false, n.wildChild != nil
 	}
 	if child, found := n.children[path]; !found {
 		if n.paramChild != nil {
-			return n.paramChild, true
+			return n.paramChild, true, true
 		}
-		return n.wildChild, n.wildChild != nil
+		return n.wildChild, false, n.wildChild != nil
 	} else {
-		return child, found
+		return child, false, found
 	}
 }
