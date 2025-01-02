@@ -55,10 +55,12 @@ func Test_router_addRoute(t *testing.T) {
 	}
 	wantRouter := &router{trees: map[string]*node{
 		http.MethodGet: {
-			path: "/",
+			path:  "/",
+			nType: nodeTypeRoot,
 			children: map[string]*node{
 				"user": {
-					path: "user",
+					path:  "user",
+					nType: nodeTypeStatic,
 					children: map[string]*node{
 						"home": {
 							path:     "home",
@@ -68,7 +70,8 @@ func Test_router_addRoute(t *testing.T) {
 					},
 				},
 				"order": {
-					path: "order",
+					path:  "order",
+					nType: nodeTypeStatic,
 					children: map[string]*node{
 						"detail": {
 							path:     "detail",
@@ -81,18 +84,23 @@ func Test_router_addRoute(t *testing.T) {
 			handler: mockHandler,
 		},
 		http.MethodPost: {
-			path: "/",
+			path:  "/",
+			nType: nodeTypeRoot,
 			wildChild: &node{
-				path: "*",
+				path:  "*",
+				nType: nodeTypeWild,
 				wildChild: &node{
 					path:    "*",
+					nType:   nodeTypeWild,
 					handler: mockHandler,
 				},
 				children: map[string]*node{
 					"order": {
-						path: "order",
+						path:  "order",
+						nType: nodeTypeStatic,
 						wildChild: &node{
 							path:    "*",
+							nType:   nodeTypeWild,
 							handler: mockHandler,
 						},
 					},
@@ -100,14 +108,17 @@ func Test_router_addRoute(t *testing.T) {
 			},
 			children: map[string]*node{
 				"order": {
-					path: "order",
+					path:  "order",
+					nType: nodeTypeStatic,
 					wildChild: &node{
+						nType:   nodeTypeWild,
 						path:    "*",
 						handler: mockHandler,
 					},
 					children: map[string]*node{
 						"create": {
 							path:     "create",
+							nType:    nodeTypeStatic,
 							children: map[string]*node{},
 							handler:  mockHandler,
 						},
@@ -116,9 +127,11 @@ func Test_router_addRoute(t *testing.T) {
 				"a": {
 					path: "a",
 					paramChild: &node{
-						path: ":b",
+						path:  ":b",
+						nType: nodeTypeParam,
 						paramChild: &node{
 							path:    ":c",
+							nType:   nodeTypeParam,
 							handler: mockHandler,
 						},
 					},
@@ -187,6 +200,9 @@ func (n *node) equal(target *node) (string, bool) {
 	if len(n.children) != len(target.children) {
 		return fmt.Sprintf("child node number not match"), false
 	}
+	if n.nType != target.nType {
+		return fmt.Sprintf("node type not match"), false
+	}
 	if n.paramChild != nil {
 		if msg, ok := n.paramChild.equal(target.paramChild); !ok {
 			return msg, false
@@ -249,6 +265,7 @@ func Test_router_FindRouter(t *testing.T) {
 			wantMatchInfo: &matchInfo{
 				n: &node{
 					path:    "/",
+					nType:   nodeTypeRoot,
 					handler: mockHandler,
 				},
 			},
@@ -261,6 +278,7 @@ func Test_router_FindRouter(t *testing.T) {
 			wantMatchInfo: &matchInfo{
 				n: &node{
 					path:    "a",
+					nType:   nodeTypeStatic,
 					handler: mockHandler,
 				},
 			},
@@ -273,6 +291,7 @@ func Test_router_FindRouter(t *testing.T) {
 			wantMatchInfo: &matchInfo{
 				n: &node{
 					path:    "b",
+					nType:   nodeTypeStatic,
 					handler: mockHandler,
 				},
 			},
@@ -285,6 +304,7 @@ func Test_router_FindRouter(t *testing.T) {
 			wantMatchInfo: &matchInfo{
 				n: &node{
 					path:    "b",
+					nType:   nodeTypeStatic,
 					handler: mockHandler,
 				},
 			},
@@ -300,6 +320,7 @@ func Test_router_FindRouter(t *testing.T) {
 					children: map[string]*node{
 						"c": {
 							path:    "c",
+							nType:   nodeTypeStatic,
 							handler: mockHandler,
 						},
 					},
@@ -314,6 +335,7 @@ func Test_router_FindRouter(t *testing.T) {
 			wantMatchInfo: &matchInfo{
 				n: &node{
 					path:    "*",
+					nType:   nodeTypeWild,
 					handler: mockHandler,
 				},
 			},
@@ -326,6 +348,7 @@ func Test_router_FindRouter(t *testing.T) {
 			wantMatchInfo: &matchInfo{
 				n: &node{
 					path:    "*",
+					nType:   nodeTypeWild,
 					handler: mockHandler,
 				},
 			},
@@ -338,6 +361,7 @@ func Test_router_FindRouter(t *testing.T) {
 			wantMatchInfo: &matchInfo{
 				n: &node{
 					path:    ":c",
+					nType:   nodeTypeParam,
 					handler: mockHandler,
 				},
 			},
