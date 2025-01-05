@@ -16,8 +16,38 @@ type Context struct {
 	cacheQueryValues url.Values
 }
 
-// BindJson 解析json
-func (ctx *Context) BindJson(value any) error {
+func (ctx *Context) ok() *Context {
+	ctx.ResponseWriter.WriteHeader(http.StatusOK)
+	return ctx
+}
+
+func (ctx *Context) fail(code int) *Context {
+	ctx.ResponseWriter.WriteHeader(code)
+	return ctx
+}
+
+func (ctx *Context) notFound() *Context {
+	ctx.ResponseWriter.WriteHeader(http.StatusNotFound)
+	_, err := ctx.ResponseWriter.Write([]byte("404 not found"))
+	if err != nil {
+		panic("write 404 fail")
+		return nil
+	}
+	return ctx
+}
+
+func (ctx *Context) cookie(cookie *http.Cookie) *Context {
+	http.SetCookie(ctx.ResponseWriter, cookie)
+	return ctx
+}
+
+func (ctx *Context) json(value any) error {
+	ctx.ResponseWriter.Header().Set("Content-Type", "application/json")
+	return json.NewEncoder(ctx.ResponseWriter).Encode(value)
+}
+
+// bindJson 解析json
+func (ctx *Context) bindJson(value any) error {
 	if ctx.Request.Body == nil {
 		return errors.New("BindJson value is nil")
 	}
@@ -25,8 +55,8 @@ func (ctx *Context) BindJson(value any) error {
 	return decoder.Decode(value)
 }
 
-// BindYaml 解析yaml
-func (ctx *Context) BindYaml(value any) error {
+// bindYaml 解析yaml
+func (ctx *Context) bindYaml(value any) error {
 	if ctx.Request.Body == nil {
 		return errors.New("BindYaml value is nil")
 	}
@@ -34,8 +64,8 @@ func (ctx *Context) BindYaml(value any) error {
 	return decoder.Decode(value)
 }
 
-// FormValue 获取表单数据
-func (ctx *Context) FormValue(key string) StringValue {
+// formValue 获取表单数据
+func (ctx *Context) formValue(key string) StringValue {
 	err := ctx.Request.ParseForm()
 	if err != nil {
 		return StringValue{"", err}
@@ -47,8 +77,8 @@ func (ctx *Context) FormValue(key string) StringValue {
 	return StringValue{values[0], nil}
 }
 
-// QueryValue 获取查询参数
-func (ctx *Context) QueryValue(key string) StringValue {
+// queryValue 获取查询参数
+func (ctx *Context) queryValue(key string) StringValue {
 	if ctx.cacheQueryValues == nil {
 		ctx.cacheQueryValues = ctx.Request.URL.Query()
 	}
@@ -59,7 +89,8 @@ func (ctx *Context) QueryValue(key string) StringValue {
 	return StringValue{values[0], nil}
 }
 
-func (ctx *Context) PathValue(key string) StringValue {
+// pathValue 获取路径参数
+func (ctx *Context) pathValue(key string) StringValue {
 	value, ok := ctx.PathParams[key]
 	if !ok {
 		return StringValue{"", errors.New("key not found")}
