@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 )
 
@@ -12,7 +11,6 @@ const (
 	nodeTypeStatic nodeType = iota
 	nodeTypeRoot
 	nodeTypeParam
-	nodeTypeRegexp
 	nodeTypeWild
 )
 
@@ -35,15 +33,13 @@ func (m *matchInfo) addValue(key string, value string) {
 
 // node 路由节点
 type node struct {
-	nType       nodeType
-	path        string
-	children    map[string]*node
-	wildChild   *node
-	paramChild  *node
-	regexpChild *node
-	regexpExpr  *regexp.Regexp
-	paramName   string
-	handler     HandleFunc
+	nType      nodeType
+	path       string
+	children   map[string]*node
+	wildChild  *node
+	paramChild *node
+	paramName  string
+	handler    HandleFunc
 }
 
 // newRouter 创建路由
@@ -103,11 +99,7 @@ func (r *router) addRoute(method string, path string, handleFunc HandleFunc) {
 // childOrCreate 创建子节点
 func (n *node) childOrCreate(path string) *node {
 	if path[0] == ':' {
-		paramName, expr, isRegexp := n.parseParam(path)
-		if isRegexp {
-			return n.childOrCreateRegexp(path, expr, paramName)
-		}
-		return n.childOrCreateParam(path, paramName)
+		return n.childOrCreateParam(path, path[1:])
 	}
 	if path == "*" {
 		return n.childOrCreateWild(path)
@@ -126,69 +118,24 @@ func (n *node) childOrCreate(path string) *node {
 	return child
 }
 
-// parseParam 解析参数路由
-func (n *node) parseParam(path string) (string, string, bool) {
-	path = path[1:]
-	regs := strings.SplitN(path, "(", 2)
-	if len(regs) == 2 {
-		expr := regs[1]
-		if strings.HasSuffix(expr, ")") {
-			return regs[0], expr[:len(expr)-1], true
-		}
-	}
-	return path, "", false
-}
-
-func (n *node) childOrCreateParam(path string, paramName string) *node {
-	if n.regexpChild != nil {
-		panic(fmt.Sprintf("exist regular routes. parameters routes cannot be registered: %s", path))
-	}
+func (n *node) childOrCreateParam(path, paramName string) *node {
 	if n.wildChild != nil {
 		panic(fmt.Sprintf("exist wildcard routes. parameters routes cannot be registered: %s", path))
 	}
 	if n.paramChild == nil {
 		n.paramChild = &node{
-			nType: nodeTypeParam,
-			path:  path,
+			nType:     nodeTypeParam,
+			path:      path,
+			paramName: paramName,
 		}
 	}
 	return n.paramChild
-}
-
-// childOrCreateRegexp 创建正则表达式子节点
-func (n *node) childOrCreateRegexp(path string, expr string, paramName string) *node {
-	if n.wildChild != nil {
-		panic(fmt.Sprintf("exist wildcard routes. regular routes cannot be registered: %s", path))
-	}
-	if n.paramChild != nil {
-		panic(fmt.Sprintf("exist parameters routes. regular routes cannot be registered: %s", path))
-	}
-	if n.regexpChild != nil {
-		if n.regexpChild.regexpExpr.String() != expr || n.paramName != paramName {
-			panic(fmt.Sprintf("routes conflict. route %s already exists. and new route %s fails to be registered.", n.regexpExpr, path))
-		}
-	} else {
-		regexpExpr, err := regexp.Compile(expr)
-		if err != nil {
-			panic(fmt.Errorf("regexp %w is invalid", err))
-		}
-		n.regexpChild = &node{
-			nType:      nodeTypeRegexp,
-			path:       path,
-			regexpExpr: regexpExpr,
-			paramName:  paramName,
-		}
-	}
-	return n.regexpChild
 }
 
 // childOrCreateWild 创建通配符子节点
 func (n *node) childOrCreateWild(path string) *node {
 	if n.paramChild != nil {
 		panic(fmt.Sprintf("exist parameters routes. wildcards routes cannot be registered: %s", path))
-	}
-	if n.regexpChild != nil {
-		panic(fmt.Sprintf("exist regular routes. wildcards routes cannot be registered: %s", path))
 	}
 	if n.wildChild == nil {
 		n.wildChild = &node{
@@ -232,26 +179,20 @@ func (r *router) findRouter(method, path string) (*matchInfo, bool) {
 
 // childOf 查找子节点,优先静态匹配,然后再通配符匹配
 // *node 命中子节点
-// nodeType 路由类型
 // bool 是否命中
 func (n *node) childOf(path string) (*node, bool) {
 	if n.children == nil {
-		return n.childOfNonStatic(path)
+		return n.childOfNonStatic()
 	}
 	res, ok := n.children[path]
 	if !ok {
-		return n.childOfNonStatic(path)
+		return n.childOfNonStatic()
 	}
 	return res, ok
 }
 
 // childOfNonStatic 查找非静态匹配子节点
-func (n *node) childOfNonStatic(path string) (*node, bool) {
-	if n.regexpChild != nil {
-		if n.regexpChild.regexpExpr.Match([]byte(path)) {
-			return n.regexpChild, true
-		}
-	}
+func (n *node) childOfNonStatic() (*node, bool) {
 	if n.paramChild != nil {
 		return n.paramChild, true
 	}

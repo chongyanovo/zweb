@@ -366,6 +366,19 @@ func Test_router_FindRouter(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:      "do not find child",
+			method:    http.MethodDelete,
+			path:      "/a",
+			wantFound: false,
+			wantMatchInfo: &matchInfo{
+				n: &node{
+					path:    "a",
+					nType:   nodeTypeStatic,
+					handler: mockHandler,
+				},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

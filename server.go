@@ -38,6 +38,7 @@ func (s *HttpServer) serve(ctx *Context) {
 		_, _ = ctx.ResponseWriter.Write([]byte("404 not found"))
 		return
 	}
+	ctx.PathParams = n.pathParams
 	n.n.handler(ctx)
 }
 
